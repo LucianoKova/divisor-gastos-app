@@ -42,9 +42,6 @@ class DivisorGastos:
 
         total_general = sum(total_pagado.values())
 
-        if len(self.personas) == 0:
-            return {}
-
         deuda_individual = total_general / len(self.personas)
 
         balance = {}
@@ -59,6 +56,7 @@ class DivisorGastos:
             self.guardar_datos()
             return True
         return False
+
     def resetear_gastos(self):
-    self.gastos = []
-    self.guardar_datos()
+        self.gastos = []
+        self.guardar_datos()
