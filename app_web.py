@@ -23,10 +23,14 @@ if menu == "Agregar gasto":
     descripcion = st.text_input("Descripción")
     monto = st.number_input("Monto", min_value=0.0, step=1000.0)
     pagador = st.selectbox("Quién pagó", app.personas)
+    categoria = st.selectbox(
+    "Categoría",
+    ["Supermercado", "Alquiler", "Servicios", "Transporte", "Comida", "Otro"]
+)
 
     if st.button("Agregar"):
         if descripcion and monto > 0:
-            app.agregar_gasto(descripcion, monto, pagador)
+            app.agregar_gasto(descripcion, monto, pagador, categoria)
             st.success("Gasto agregado correctamente")
         else:
             st.error("Complete todos los campos correctamente")
