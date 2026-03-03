@@ -1,7 +1,6 @@
 import streamlit as st
 from gastos import DivisorGastos
 import pandas as pd
-import matplotlib.pyplot as plt
 
 app = DivisorGastos()
 
@@ -64,31 +63,14 @@ elif menu == "Ver gastos":
     if not app.gastos:
         st.warning("No hay gastos registrados.")
     else:
-        df = pd.DataFrame(app.gastos)
-
-        # Manejo de fechas viejas sin campo fecha
-        if "fecha" not in df.columns:
-            df["fecha"] = None
-
-        df["fecha"] = df["fecha"].fillna("2024-01-01")
-        df["fecha"] = pd.to_datetime(df["fecha"])
-
-        df = df.sort_values("fecha", ascending=False)
-
-        st.dataframe(df)
-
-        st.subheader("Total pagado por persona")
+       df = pd.DataFrame(app.gastos)
+df["fecha"] = pd.to_datetime(df["fecha"])
+st.dataframe(df.sort_values("fecha", ascending=False))
+ st.subheader("Total pagado por persona")
         totales = df.groupby("pagador")["monto"].sum()
-
         st.bar_chart(totales)
-
         st.subheader("Distribución porcentual")
-
-        fig, ax = plt.subplots()
-        ax.pie(totales, labels=totales.index, autopct="%1.1f%%")
-        ax.set_title("Gastos por persona")
-
-        st.pyplot(fig)
+st.pyplot(totales.plot.pie(autopct="%1.1f%%", ylabel="").figure)
 
 
 # ---------------------------------------
@@ -112,3 +94,12 @@ elif menu == "Eliminar gasto":
             indice = opciones.index(seleccion)
             app.eliminar_gasto(indice)
             st.success("Gasto eliminado correctamente")
+            import matplotlib.pyplot as plt
+
+st.subheader("Distribución porcentual")
+
+fig, ax = plt.subplots()
+ax.pie(totales, labels=totales.index, autopct="%1.1f%%")
+ax.set_title("Gastos por persona")
+
+st.pyplot(fig)
