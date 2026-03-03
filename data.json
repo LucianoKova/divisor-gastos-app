@@ -1,0 +1,27 @@
+[
+    {
+        "descripcion": "Supermercado",
+        "monto": 354000.0,
+        "pagador": "Luciano"
+    },
+    {
+        "descripcion": "Supermercado",
+        "monto": 354000.0,
+        "pagador": "Luciano"
+    },
+    {
+        "descripcion": "Super",
+        "monto": 354000.0,
+        "pagador": "Luciano"
+    },
+    {
+        "descripcion": "Alquiler",
+        "monto": 700000.0,
+        "pagador": "Luciano"
+    },
+    {
+        "descripcion": "Internet",
+        "monto": 200000.0,
+        "pagador": "Mirko"
+    }
+]
