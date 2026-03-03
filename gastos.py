@@ -1,28 +1,33 @@
 import os
 import psycopg2
-import bcrypt
 from datetime import datetime
+from passlib.context import CryptContext
+# Deploy limpio sin bcrypt
 
 
 class DivisorGastos:
+
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
     def __init__(self):
         self.personas = ["Luciano", "Mirko"]
         self._crear_tablas()
 
-    # ----------------------------
-    # CONEXIÓN POSTGRESQL
-    # ----------------------------
+    # -----------------------------
+    # CONEXIÓN POSTGRES
+    # -----------------------------
     def _conectar(self):
         database_url = os.getenv("DATABASE_URL")
         return psycopg2.connect(database_url)
 
-    # ----------------------------
+    # -----------------------------
     # CREAR TABLAS
-    # ----------------------------
+    # -----------------------------
     def _crear_tablas(self):
         conn = self._conectar()
         cursor = conn.cursor()
 
+        # Usuarios
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -31,6 +36,7 @@ class DivisorGastos:
             )
         """)
 
+        # Gastos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gastos (
                 id SERIAL PRIMARY KEY,
@@ -43,6 +49,7 @@ class DivisorGastos:
             )
         """)
 
+        # Presupuestos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS presupuestos (
                 id SERIAL PRIMARY KEY,
@@ -55,47 +62,49 @@ class DivisorGastos:
         conn.commit()
         conn.close()
 
-    # ----------------------------
+    # -----------------------------
     # USUARIOS
-    # ----------------------------
+    # -----------------------------
     def crear_usuario(self, username, password):
         conn = self._conectar()
         cursor = conn.cursor()
 
-        password_hash = bcrypt.hashpw(
-            password.encode(), bcrypt.gensalt()
-        ).decode()
+        hashed_password = self.pwd_context.hash(password)
 
-        cursor.execute("""
-            INSERT INTO usuarios (username, password_hash)
-            VALUES (%s, %s)
-            ON CONFLICT (username) DO NOTHING
-        """, (username, password_hash))
+        try:
+            cursor.execute("""
+                INSERT INTO usuarios (username, password_hash)
+                VALUES (%s, %s)
+            """, (username, hashed_password))
+            conn.commit()
+        except:
+            # Si ya existe, no hace nada
+            pass
 
-        conn.commit()
         conn.close()
 
-    def validar_usuario(self, username, password):
+    def verificar_usuario(self, username, password):
         conn = self._conectar()
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT password_hash FROM usuarios
+            SELECT password_hash
+            FROM usuarios
             WHERE username = %s
         """, (username,))
 
         resultado = cursor.fetchone()
         conn.close()
 
-        if not resultado:
-            return False
+        if resultado:
+            password_hash_db = resultado[0]
+            return self.pwd_context.verify(password, password_hash_db)
 
-        password_hash = resultado[0].encode()
-        return bcrypt.checkpw(password.encode(), password_hash)
+        return False
 
-    # ----------------------------
+    # -----------------------------
     # GASTOS
-    # ----------------------------
+    # -----------------------------
     def agregar_gasto(self, descripcion, monto, pagador, categoria, usuario):
         conn = self._conectar()
         cursor = conn.cursor()
@@ -119,13 +128,9 @@ class DivisorGastos:
         conn = self._conectar()
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT id, descripcion, monto, pagador, categoria, usuario, fecha
-            FROM gastos
-            ORDER BY fecha ASC
-        """)
-
+        cursor.execute("SELECT * FROM gastos")
         datos = cursor.fetchall()
+
         conn.close()
         return datos
 
@@ -133,14 +138,17 @@ class DivisorGastos:
         conn = self._conectar()
         cursor = conn.cursor()
 
-        cursor.execute(
-            "DELETE FROM gastos WHERE id = %s",
-            (id_gasto,)
-        )
+        cursor.execute("""
+            DELETE FROM gastos
+            WHERE id = %s
+        """, (id_gasto,))
 
         conn.commit()
         conn.close()
 
+    # -----------------------------
+    # BALANCE
+    # -----------------------------
     def calcular_balance(self, usuario):
         conn = self._conectar()
         cursor = conn.cursor()
@@ -157,7 +165,7 @@ class DivisorGastos:
         resultados = cursor.fetchall()
 
         for pagador, total in resultados:
-            total_pagado[pagador] = float(total) if total else 0
+            total_pagado[pagador] = total if total else 0
 
         total_general = sum(total_pagado.values())
 
@@ -167,17 +175,16 @@ class DivisorGastos:
 
         deuda_individual = total_general / len(self.personas)
 
-        balance = {
-            persona: total_pagado[persona] - deuda_individual
-            for persona in self.personas
-        }
+        balance = {}
+        for persona in self.personas:
+            balance[persona] = total_pagado[persona] - deuda_individual
 
         conn.close()
         return balance
 
-    # ----------------------------
-    # PRESUPUESTO
-    # ----------------------------
+    # -----------------------------
+    # PRESUPUESTOS
+    # -----------------------------
     def guardar_presupuesto(self, usuario, mes, monto):
         conn = self._conectar()
         cursor = conn.cursor()
@@ -200,11 +207,12 @@ class DivisorGastos:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT monto FROM presupuestos
+            SELECT monto
+            FROM presupuestos
             WHERE usuario = %s AND mes = %s
         """, (usuario, mes))
 
         resultado = cursor.fetchone()
         conn.close()
 
-        return float(resultado[0]) if resultado else None
+        return resultado[0] if resultado else None
