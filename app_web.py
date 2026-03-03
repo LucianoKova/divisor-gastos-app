@@ -4,6 +4,31 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 app = DivisorGastos()
+# -----------------------------
+# LOGIN SIMPLE
+# -----------------------------
+usuarios = {
+    "luciano": "1234",
+    "mirko": "1234"
+}
+
+if "usuario" not in st.session_state:
+    st.session_state.usuario = None
+
+if st.session_state.usuario is None:
+    st.title("🔐 Login")
+
+    user = st.text_input("Usuario")
+    password = st.text_input("Contraseña", type="password")
+
+    if st.button("Ingresar"):
+        if user in usuarios and usuarios[user] == password:
+            st.session_state.usuario = user
+            st.rerun()
+        else:
+            st.error("Usuario o contraseña incorrectos")
+
+    st.stop()
 
 st.set_page_config(page_title="Divisor de Gastos", page_icon="💰")
 st.title("💰 Divisor de Gastos - Luciano & Mirko")
@@ -30,7 +55,7 @@ if menu == "Agregar gasto":
 
     if st.button("Agregar"):
         if descripcion and monto > 0:
-            app.agregar_gasto(descripcion, monto, pagador, categoria)
+            app.agregar_gasto(descripcion, monto, pagador, categoria, st.session_state.usuario)
             st.success("Gasto agregado correctamente")
         else:
             st.error("Complete todos los campos correctamente")
@@ -67,6 +92,7 @@ elif menu == "Ver gastos":
         df = pd.DataFrame(app.gastos)
         df["fecha"] = pd.to_datetime(df["fecha"])
         df = df.sort_values("fecha")
+        df = df[df["usuario"] == st.session_state.usuario]
 
         # Filtro fechas
         min_fecha = df["fecha"].min()
@@ -102,6 +128,24 @@ elif menu == "Ver gastos":
             valor = total_por_persona.get(persona, 0)
             col = col2 if i == 0 else col3
             col.metric(f"Pagado por {persona}", f"${valor:,.0f}")
+            
+    # -----------------------------
+    # GRÁFICO POR CATEGORÍA
+    # -----------------------------
+    st.subheader("🧩 Gastos por categoría")
+
+    if "categoria" in df_filtrado.columns:
+        gastos_categoria = df_filtrado.groupby("categoria")["monto"].sum()
+
+        fig2, ax2 = plt.subplots()
+        ax2.pie(
+            gastos_categoria,
+            labels=gastos_categoria.index,
+            autopct="%1.1f%%"
+        )
+        ax2.set_title("Distribución por categoría")
+
+        st.pyplot(fig2)
 
         # Quién debe a quién
         balance = app.calcular_balance()
