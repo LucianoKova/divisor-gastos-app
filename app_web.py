@@ -86,7 +86,7 @@ elif menu == "Ver balance":
 
     st.subheader("Balance actual")
 
-    balance = app.calcular_balance()
+    balance = app.calcular_balance(st.session_state.usuario)
 
     persona1, persona2 = app.personas
     monto1 = balance[persona1]
@@ -124,8 +124,70 @@ elif menu == "Ver gastos":
             df["fecha"] = pd.to_datetime(df["fecha"])
             df = df.sort_values("fecha")
 
+                        # ---------------------------------------
+            # PRESUPUESTO MENSUAL
+            # ---------------------------------------
+            st.subheader("💰 Presupuesto mensual")
+
+            meses_disponibles = sorted(
+                df["fecha"].dt.to_period("M").astype(str).unique()
+            )
+
+            if meses_disponibles:
+
+                mes_seleccionado = st.selectbox(
+                    "Seleccionar mes",
+                    meses_disponibles,
+                    index=len(meses_disponibles) - 1
+                )
+
+                presupuesto_actual = app.obtener_presupuesto(
+                    st.session_state.usuario,
+                    mes_seleccionado
+                )
+
+                nuevo_presupuesto = st.number_input(
+                    "Definir / editar presupuesto del mes",
+                    min_value=0.0,
+                    value=float(presupuesto_actual) if presupuesto_actual else 0.0,
+                    step=50000.0
+                )
+
+                if st.button("Guardar presupuesto"):
+                    app.guardar_presupuesto(
+                        st.session_state.usuario,
+                        mes_seleccionado,
+                        nuevo_presupuesto
+                    )
+                    st.success("Presupuesto actualizado")
+                    st.rerun()
+
+                df_mes = df[
+                    df["fecha"].dt.to_period("M").astype(str) == mes_seleccionado
+                ]
+
+                gasto_mes = df_mes["monto"].sum()
+
+                if presupuesto_actual and presupuesto_actual > 0:
+
+                    porcentaje = gasto_mes / presupuesto_actual
+                    st.progress(min(porcentaje, 1.0))
+
+                    restante = presupuesto_actual - gasto_mes
+
+                    if restante > 0:
+                        st.success(f"Te quedan ${restante:,.0f}")
+                    else:
+                        st.error(f"⚠ Excediste el presupuesto en ${abs(restante):,.0f}")
+
+            # ---------------------------------------
+            # TABLA
+            # ---------------------------------------
             st.dataframe(df)
 
+            # ---------------------------------------
+            # KPIs
+            # ---------------------------------------
             total_general = df["monto"].sum()
             total_por_persona = df.groupby("pagador")["monto"].sum()
 
@@ -137,7 +199,9 @@ elif menu == "Ver gastos":
                 col = col2 if i == 0 else col3
                 col.metric(f"Pagado por {persona}", f"${valor:,.0f}")
 
-            # Gráfico categoría
+            # ---------------------------------------
+            # GRÁFICO CATEGORÍA
+            # ---------------------------------------
             st.subheader("🧩 Gastos por categoría")
             gastos_categoria = df.groupby("categoria")["monto"].sum()
 
@@ -150,11 +214,15 @@ elif menu == "Ver gastos":
             ax2.set_title("Distribución por categoría")
             st.pyplot(fig2)
 
-            # Evolución mensual
+            # ---------------------------------------
+            # EVOLUCIÓN MENSUAL
+            # ---------------------------------------
             st.subheader("📈 Evolución mensual")
+
             df["mes"] = df["fecha"].dt.to_period("M")
             mensual = df.groupby("mes")["monto"].sum()
             mensual.index = mensual.index.astype(str)
+
             st.line_chart(mensual)
 
 # ---------------------------------------
