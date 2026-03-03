@@ -75,6 +75,7 @@ class DivisorGastos:
         cursor.execute("DELETE FROM gastos WHERE id = ?", (id_gasto,))
         conn.commit()
         conn.close()
+
     def calcular_balance(self, usuario):
         conn = self._conectar()
         cursor = conn.cursor()
@@ -107,8 +108,6 @@ class DivisorGastos:
 
         conn.close()
         return balance
-
-    
 
     # -----------------------------
     # PRESUPUESTO
