@@ -48,6 +48,77 @@ elif menu == "Ver balance":
 
 elif menu == "Ver gastos":
 
+    st.subheader("📋 Lista de gastos")
+
+    if not app.gastos:
+        st.warning("No hay gastos registrados.")
+    else:
+        df = pd.DataFrame(app.gastos)
+
+        if "fecha" not in df.columns:
+            df["fecha"] = None
+
+        df["fecha"] = pd.to_datetime(df["fecha"])
+        df = df.sort_values("fecha")
+
+        # -----------------------------
+        # FILTRO POR RANGO DE FECHAS
+        # -----------------------------
+        min_fecha = df["fecha"].min()
+        max_fecha = df["fecha"].max()
+
+        fecha_inicio, fecha_fin = st.date_input(
+            "Filtrar por fecha",
+            [min_fecha, max_fecha]
+        )
+
+        df_filtrado = df[
+            (df["fecha"] >= pd.to_datetime(fecha_inicio)) &
+            (df["fecha"] <= pd.to_datetime(fecha_fin))
+        ]
+
+        st.dataframe(df_filtrado.sort_values("fecha", ascending=False))
+
+        # -----------------------------
+        # KPIs
+        # -----------------------------
+        total_general = df_filtrado["monto"].sum()
+        total_por_persona = df_filtrado.groupby("pagador")["monto"].sum()
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("💰 Total General", f"${total_general:,.0f}")
+
+        for i, persona in enumerate(app.personas):
+            valor = total_por_persona.get(persona, 0)
+            col = col2 if i == 0 else col3
+            col.metric(f"Pagado por {persona}", f"${valor:,.0f}")
+
+        # -----------------------------
+        # GRÁFICO DE BARRAS
+        # -----------------------------
+        st.subheader("📊 Total pagado por persona")
+        st.bar_chart(total_por_persona)
+
+        # -----------------------------
+        # GRÁFICO DE TORTA
+        # -----------------------------
+        st.subheader("🥧 Distribución porcentual")
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.pie(total_por_persona, labels=total_por_persona.index, autopct="%1.1f%%")
+        ax.set_title("Gastos por persona")
+        st.pyplot(fig)
+
+        # -----------------------------
+        # EVOLUCIÓN TEMPORAL
+        # -----------------------------
+        st.subheader("📈 Evolución de gastos en el tiempo")
+
+        evolucion = df_filtrado.groupby("fecha")["monto"].sum()
+        st.line_chart(evolucion)
+
     st.subheader("Lista de gastos")
 
     if not app.gastos:
