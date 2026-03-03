@@ -1,35 +1,51 @@
-import sqlite3
+import os
+import psycopg2
+import bcrypt
 from datetime import datetime
 
 
 class DivisorGastos:
-    def __init__(self, db_name="gastos.db"):
-        self.db_name = db_name
+    def __init__(self):
         self.personas = ["Luciano", "Mirko"]
         self._crear_tablas()
 
+    # ----------------------------
+    # CONEXIÓN POSTGRESQL
+    # ----------------------------
     def _conectar(self):
-        return sqlite3.connect(self.db_name)
+        database_url = os.getenv("DATABASE_URL")
+        return psycopg2.connect(database_url)
 
+    # ----------------------------
+    # CREAR TABLAS
+    # ----------------------------
     def _crear_tablas(self):
         conn = self._conectar()
         cursor = conn.cursor()
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS gastos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 descripcion TEXT,
                 monto REAL,
                 pagador TEXT,
                 categoria TEXT,
                 usuario TEXT,
-                fecha TEXT
+                fecha DATE
             )
         """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS presupuestos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 usuario TEXT,
                 mes TEXT,
                 monto REAL
@@ -39,23 +55,61 @@ class DivisorGastos:
         conn.commit()
         conn.close()
 
-    # -----------------------------
+    # ----------------------------
+    # USUARIOS
+    # ----------------------------
+    def crear_usuario(self, username, password):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
+        password_hash = bcrypt.hashpw(
+            password.encode(), bcrypt.gensalt()
+        ).decode()
+
+        cursor.execute("""
+            INSERT INTO usuarios (username, password_hash)
+            VALUES (%s, %s)
+            ON CONFLICT (username) DO NOTHING
+        """, (username, password_hash))
+
+        conn.commit()
+        conn.close()
+
+    def validar_usuario(self, username, password):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT password_hash FROM usuarios
+            WHERE username = %s
+        """, (username,))
+
+        resultado = cursor.fetchone()
+        conn.close()
+
+        if not resultado:
+            return False
+
+        password_hash = resultado[0].encode()
+        return bcrypt.checkpw(password.encode(), password_hash)
+
+    # ----------------------------
     # GASTOS
-    # -----------------------------
+    # ----------------------------
     def agregar_gasto(self, descripcion, monto, pagador, categoria, usuario):
         conn = self._conectar()
         cursor = conn.cursor()
 
         cursor.execute("""
             INSERT INTO gastos (descripcion, monto, pagador, categoria, usuario, fecha)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             descripcion,
             monto,
             pagador,
             categoria,
             usuario,
-            datetime.now().strftime("%Y-%m-%d")
+            datetime.now().date()
         ))
 
         conn.commit()
@@ -64,7 +118,13 @@ class DivisorGastos:
     def obtener_gastos(self):
         conn = self._conectar()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM gastos")
+
+        cursor.execute("""
+            SELECT id, descripcion, monto, pagador, categoria, usuario, fecha
+            FROM gastos
+            ORDER BY fecha ASC
+        """)
+
         datos = cursor.fetchall()
         conn.close()
         return datos
@@ -72,7 +132,12 @@ class DivisorGastos:
     def eliminar_gasto(self, id_gasto):
         conn = self._conectar()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM gastos WHERE id = ?", (id_gasto,))
+
+        cursor.execute(
+            "DELETE FROM gastos WHERE id = %s",
+            (id_gasto,)
+        )
+
         conn.commit()
         conn.close()
 
@@ -85,14 +150,14 @@ class DivisorGastos:
         cursor.execute("""
             SELECT pagador, SUM(monto)
             FROM gastos
-            WHERE usuario = ?
+            WHERE usuario = %s
             GROUP BY pagador
         """, (usuario,))
 
         resultados = cursor.fetchall()
 
         for pagador, total in resultados:
-            total_pagado[pagador] = total if total else 0
+            total_pagado[pagador] = float(total) if total else 0
 
         total_general = sum(total_pagado.values())
 
@@ -102,28 +167,29 @@ class DivisorGastos:
 
         deuda_individual = total_general / len(self.personas)
 
-        balance = {}
-        for persona in self.personas:
-            balance[persona] = total_pagado[persona] - deuda_individual
+        balance = {
+            persona: total_pagado[persona] - deuda_individual
+            for persona in self.personas
+        }
 
         conn.close()
         return balance
 
-    # -----------------------------
+    # ----------------------------
     # PRESUPUESTO
-    # -----------------------------
+    # ----------------------------
     def guardar_presupuesto(self, usuario, mes, monto):
         conn = self._conectar()
         cursor = conn.cursor()
 
         cursor.execute("""
             DELETE FROM presupuestos
-            WHERE usuario = ? AND mes = ?
+            WHERE usuario = %s AND mes = %s
         """, (usuario, mes))
 
         cursor.execute("""
             INSERT INTO presupuestos (usuario, mes, monto)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         """, (usuario, mes, monto))
 
         conn.commit()
@@ -135,10 +201,10 @@ class DivisorGastos:
 
         cursor.execute("""
             SELECT monto FROM presupuestos
-            WHERE usuario = ? AND mes = ?
+            WHERE usuario = %s AND mes = %s
         """, (usuario, mes))
 
         resultado = cursor.fetchone()
         conn.close()
 
-        return resultado[0] if resultado else None
+        return float(resultado[0]) if resultado else None
