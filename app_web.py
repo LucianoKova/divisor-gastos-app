@@ -1,11 +1,8 @@
 import streamlit as st
 from gastos import DivisorGastos
 import pandas as pd
-import matplotlib.pyplot as plt
-import calendar
 from datetime import datetime
 import io
-
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -16,17 +13,13 @@ st.set_page_config(page_title="Divisor de Gastos", page_icon="💰")
 app = DivisorGastos()
 
 # -----------------------------
-# LOGIN
+# LOGIN REAL CON BASE
 # -----------------------------
-usuarios = {
-    "luciano": "1234",
-    "mirko": "1234"
-}
-
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
 if st.session_state.usuario is None:
+
     st.title("🔐 Divisor de Gastos")
     st.subheader("Iniciar sesión")
 
@@ -34,7 +27,7 @@ if st.session_state.usuario is None:
     password = st.text_input("Contraseña", type="password")
 
     if st.button("Ingresar"):
-        if user in usuarios and usuarios[user] == password:
+        if app.verificar_usuario(user, password):
             st.session_state.usuario = user
             st.rerun()
         else:
@@ -42,7 +35,10 @@ if st.session_state.usuario is None:
 
     st.stop()
 
-st.sidebar.success(f"👤 Sesión: {st.session_state.usuario.capitalize()}")
+# -----------------------------
+# SESIÓN ACTIVA
+# -----------------------------
+st.sidebar.success(f"👤 Sesión: {st.session_state.usuario}")
 
 if st.sidebar.button("Cerrar sesión"):
     st.session_state.usuario = None
@@ -89,7 +85,6 @@ def generar_pdf(usuario, mes, gasto_mes, presupuesto, gasto_anterior):
     buffer.seek(0)
     return buffer
 
-
 # -----------------------------
 # AGREGAR GASTO
 # -----------------------------
@@ -98,12 +93,20 @@ if menu == "Agregar gasto":
     descripcion = st.text_input("Descripción")
     monto = st.number_input("Monto", min_value=0.0)
     pagador = st.selectbox("Quién pagó", app.personas)
-    categoria = st.selectbox("Categoría",
-                             ["Supermercado", "Alquiler", "Servicios", "Transporte", "Comida", "Otro"])
+    categoria = st.selectbox(
+        "Categoría",
+        ["Supermercado", "Alquiler", "Servicios", "Transporte", "Comida", "Otro"]
+    )
 
     if st.button("Agregar"):
         if descripcion and monto > 0:
-            app.agregar_gasto(descripcion, monto, pagador, categoria, st.session_state.usuario)
+            app.agregar_gasto(
+                descripcion,
+                monto,
+                pagador,
+                categoria,
+                st.session_state.usuario
+            )
             st.success("Gasto agregado")
             st.rerun()
 
@@ -140,7 +143,6 @@ elif menu == "Ver gastos":
         if not df.empty:
 
             df["fecha"] = pd.to_datetime(df["fecha"])
-
             st.dataframe(df)
 
             gasto_total = df["monto"].sum()
@@ -161,7 +163,6 @@ elif menu == "Ver gastos":
             st.write(f"Mes actual: ${gasto_actual:,.0f}")
             st.write(f"Mes anterior: ${gasto_anterior:,.0f}")
 
-            # Exportar PDF
             pdf = generar_pdf(
                 st.session_state.usuario,
                 mes_actual,
@@ -192,15 +193,16 @@ elif menu == "Eliminar gasto":
 
         df = df[df["usuario"] == st.session_state.usuario]
 
-        opciones = [
-            f"{row['id']} - {row['descripcion']} - ${row['monto']}"
-            for _, row in df.iterrows()
-        ]
+        if not df.empty:
+            opciones = [
+                f"{row['id']} - {row['descripcion']} - ${row['monto']}"
+                for _, row in df.iterrows()
+            ]
 
-        seleccion = st.selectbox("Seleccionar gasto", opciones)
+            seleccion = st.selectbox("Seleccionar gasto", opciones)
 
-        if st.button("Eliminar"):
-            id_gasto = int(seleccion.split(" - ")[0])
-            app.eliminar_gasto(id_gasto)
-            st.success("Eliminado")
-            st.rerun()
+            if st.button("Eliminar"):
+                id_gasto = int(seleccion.split(" - ")[0])
+                app.eliminar_gasto(id_gasto)
+                st.success("Eliminado")
+                st.rerun()
