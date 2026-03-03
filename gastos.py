@@ -24,16 +24,16 @@ class DivisorGastos:
         with open(self.archivo, "w") as f:
             json.dump(self.gastos, f, indent=4)
 
-def agregar_gasto(self, descripcion, monto, pagador, categoria):
-    gasto = {
-        "descripcion": descripcion,
-        "monto": monto,
-        "pagador": pagador,
-        "categoria": categoria,
-        "fecha": datetime.now().strftime("%Y-%m-%d")
-    }
-    self.gastos.append(gasto)
-    self.guardar_datos()
+    def agregar_gasto(self, descripcion, monto, pagador, categoria):
+        gasto = {
+            "descripcion": descripcion,
+            "monto": monto,
+            "pagador": pagador,
+            "categoria": categoria,
+            "fecha": datetime.now().strftime("%Y-%m-%d")
+        }
+        self.gastos.append(gasto)
+        self.guardar_datos()
 
     def calcular_balance(self):
         total_pagado = {persona: 0 for persona in self.personas}
