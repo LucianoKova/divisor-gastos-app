@@ -59,3 +59,6 @@ class DivisorGastos:
             self.guardar_datos()
             return True
         return False
+    def resetear_gastos(self):
+    self.gastos = []
+    self.guardar_datos()
