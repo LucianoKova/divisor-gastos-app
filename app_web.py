@@ -8,7 +8,7 @@ st.set_page_config(page_title="Divisor de Gastos", page_icon="💰")
 app = DivisorGastos()
 
 # -----------------------------
-# LOGIN SIMPLE
+# LOGIN
 # -----------------------------
 usuarios = {
     "luciano": "1234",
@@ -18,7 +18,6 @@ usuarios = {
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
-# Pantalla de login
 if st.session_state.usuario is None:
     st.title("🔐 Divisor de Gastos")
     st.subheader("Iniciar sesión")
@@ -38,7 +37,6 @@ if st.session_state.usuario is None:
 
     st.stop()
 
-# Si ya está logueado
 st.sidebar.success(f"👤 Sesión: {st.session_state.usuario.capitalize()}")
 
 if st.sidebar.button("🚪 Cerrar sesión"):
@@ -77,6 +75,7 @@ if menu == "Agregar gasto":
                 st.session_state.usuario
             )
             st.success("Gasto agregado correctamente")
+            st.rerun()
         else:
             st.error("Complete todos los campos correctamente")
 
@@ -88,6 +87,7 @@ elif menu == "Ver balance":
     st.subheader("Balance actual")
 
     balance = app.calcular_balance()
+
     persona1, persona2 = app.personas
     monto1 = balance[persona1]
     monto2 = balance[persona2]
@@ -106,14 +106,17 @@ elif menu == "Ver gastos":
 
     st.subheader("📋 Lista de gastos")
 
-    if not app.gastos:
+    datos = app.obtener_gastos()
+
+    if not datos:
         st.warning("No hay gastos registrados.")
     else:
-        df = pd.DataFrame(app.gastos)
+        df = pd.DataFrame(datos, columns=[
+            "id", "descripcion", "monto",
+            "pagador", "categoria", "usuario", "fecha"
+        ])
 
-        # Filtrar por usuario
-        if "usuario" in df.columns:
-            df = df[df["usuario"] == st.session_state.usuario]
+        df = df[df["usuario"] == st.session_state.usuario]
 
         if df.empty:
             st.warning("No hay gastos para este usuario.")
@@ -121,32 +124,10 @@ elif menu == "Ver gastos":
             df["fecha"] = pd.to_datetime(df["fecha"])
             df = df.sort_values("fecha")
 
-            # Filtro fechas
-            min_fecha = df["fecha"].min()
-            max_fecha = df["fecha"].max()
+            st.dataframe(df)
 
-            fecha_inicio, fecha_fin = st.date_input(
-                "Filtrar por fecha",
-                [min_fecha, max_fecha]
-            )
-
-            df_filtrado = df[
-                (df["fecha"] >= pd.to_datetime(fecha_inicio)) &
-                (df["fecha"] <= pd.to_datetime(fecha_fin))
-            ]
-
-            st.dataframe(df_filtrado.sort_values("fecha", ascending=False))
-
-            st.download_button(
-                label="📥 Descargar CSV",
-                data=df_filtrado.to_csv(index=False),
-                file_name="gastos_filtrados.csv",
-                mime="text/csv"
-            )
-
-            # KPIs
-            total_general = df_filtrado["monto"].sum()
-            total_por_persona = df_filtrado.groupby("pagador")["monto"].sum()
+            total_general = df["monto"].sum()
+            total_por_persona = df.groupby("pagador")["monto"].sum()
 
             col1, col2, col3 = st.columns(3)
             col1.metric("💰 Total General", f"${total_general:,.0f}")
@@ -156,39 +137,24 @@ elif menu == "Ver gastos":
                 col = col2 if i == 0 else col3
                 col.metric(f"Pagado por {persona}", f"${valor:,.0f}")
 
-            # -----------------------------
-            # GRÁFICO POR CATEGORÍA
-            # -----------------------------
+            # Gráfico categoría
             st.subheader("🧩 Gastos por categoría")
+            gastos_categoria = df.groupby("categoria")["monto"].sum()
 
-            if "categoria" in df_filtrado.columns:
-                gastos_categoria = df_filtrado.groupby("categoria")["monto"].sum()
+            fig2, ax2 = plt.subplots()
+            ax2.pie(
+                gastos_categoria,
+                labels=gastos_categoria.index,
+                autopct="%1.1f%%"
+            )
+            ax2.set_title("Distribución por categoría")
+            st.pyplot(fig2)
 
-                fig2, ax2 = plt.subplots()
-                ax2.pie(
-                    gastos_categoria,
-                    labels=gastos_categoria.index,
-                    autopct="%1.1f%%"
-                )
-                ax2.set_title("Distribución por categoría")
-
-                st.pyplot(fig2)
-
-            # -----------------------------
-            # GRÁFICO POR PERSONA
-            # -----------------------------
-            st.subheader("📊 Total pagado por persona")
-            st.bar_chart(total_por_persona)
-
-            # -----------------------------
-            # EVOLUCIÓN MENSUAL
-            # -----------------------------
+            # Evolución mensual
             st.subheader("📈 Evolución mensual")
-
-            df_filtrado["mes"] = df_filtrado["fecha"].dt.to_period("M")
-            mensual = df_filtrado.groupby("mes")["monto"].sum()
+            df["mes"] = df["fecha"].dt.to_period("M")
+            mensual = df.groupby("mes")["monto"].sum()
             mensual.index = mensual.index.astype(str)
-
             st.line_chart(mensual)
 
 # ---------------------------------------
@@ -198,25 +164,30 @@ elif menu == "Eliminar gasto":
 
     st.subheader("Eliminar gasto")
 
-    if not app.gastos:
+    datos = app.obtener_gastos()
+
+    if not datos:
         st.warning("No hay gastos para eliminar.")
     else:
-        df = pd.DataFrame(app.gastos)
+        df = pd.DataFrame(datos, columns=[
+            "id", "descripcion", "monto",
+            "pagador", "categoria", "usuario", "fecha"
+        ])
 
-        if "usuario" in df.columns:
-            df = df[df["usuario"] == st.session_state.usuario]
+        df = df[df["usuario"] == st.session_state.usuario]
 
         if df.empty:
             st.warning("No hay gastos para este usuario.")
         else:
             opciones = [
-                f"{i+1}. {g['descripcion']} - ${g['monto']} - {g['pagador']}"
-                for i, g in df.iterrows()
+                f"{row['id']} - {row['descripcion']} - ${row['monto']}"
+                for _, row in df.iterrows()
             ]
 
             seleccion = st.selectbox("Seleccionar gasto", opciones)
 
             if st.button("Eliminar"):
-                indice = opciones.index(seleccion)
-                app.eliminar_gasto(indice)
+                id_gasto = int(seleccion.split(" - ")[0])
+                app.eliminar_gasto(id_gasto)
                 st.success("Gasto eliminado correctamente")
+                st.rerun()
