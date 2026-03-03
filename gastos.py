@@ -1,45 +1,83 @@
-import json
-import os
+import sqlite3
 from datetime import datetime
 
 
 class DivisorGastos:
-    def __init__(self, archivo="data.json"):
-        self.archivo = archivo
+    def __init__(self, db_name="gastos.db"):
+        self.db_name = db_name
         self.personas = ["Luciano", "Mirko"]
-        self.gastos = []
-        self.cargar_datos()
+        self._crear_tabla()
 
-    def cargar_datos(self):
-        if os.path.exists(self.archivo):
-            try:
-                with open(self.archivo, "r") as f:
-                    self.gastos = json.load(f)
-            except json.JSONDecodeError:
-                self.gastos = []
-        else:
-            self.gastos = []
+    def _conectar(self):
+        return sqlite3.connect(self.db_name)
 
-    def guardar_datos(self):
-        with open(self.archivo, "w") as f:
-            json.dump(self.gastos, f, indent=4)
+    def _crear_tabla(self):
+        conn = self._conectar()
+        cursor = conn.cursor()
 
-    def agregar_gasto(self, descripcion, monto, pagador, categoria):
-        gasto = {
-            "descripcion": descripcion,
-            "monto": monto,
-            "pagador": pagador,
-            "categoria": categoria,
-            "fecha": datetime.now().strftime("%Y-%m-%d")
-        }
-        self.gastos.append(gasto)
-        self.guardar_datos()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gastos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                descripcion TEXT,
+                monto REAL,
+                pagador TEXT,
+                categoria TEXT,
+                usuario TEXT,
+                fecha TEXT
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+
+    def agregar_gasto(self, descripcion, monto, pagador, categoria, usuario):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO gastos (descripcion, monto, pagador, categoria, usuario, fecha)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            descripcion,
+            monto,
+            pagador,
+            categoria,
+            usuario,
+            datetime.now().strftime("%Y-%m-%d")
+        ))
+
+        conn.commit()
+        conn.close()
+
+    def obtener_gastos(self):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM gastos")
+        datos = cursor.fetchall()
+
+        conn.close()
+        return datos
+
+    def eliminar_gasto(self, id_gasto):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM gastos WHERE id = ?", (id_gasto,))
+        conn.commit()
+        conn.close()
 
     def calcular_balance(self):
+        conn = self._conectar()
+        cursor = conn.cursor()
+
         total_pagado = {persona: 0 for persona in self.personas}
 
-        for gasto in self.gastos:
-            total_pagado[gasto["pagador"]] += gasto["monto"]
+        cursor.execute("SELECT pagador, SUM(monto) FROM gastos GROUP BY pagador")
+        resultados = cursor.fetchall()
+
+        for pagador, total in resultados:
+            total_pagado[pagador] = total if total else 0
 
         total_general = sum(total_pagado.values())
         deuda_individual = total_general / len(self.personas)
@@ -48,15 +86,5 @@ class DivisorGastos:
         for persona in self.personas:
             balance[persona] = total_pagado[persona] - deuda_individual
 
+        conn.close()
         return balance
-
-    def eliminar_gasto(self, indice):
-        if 0 <= indice < len(self.gastos):
-            self.gastos.pop(indice)
-            self.guardar_datos()
-            return True
-        return False
-
-    def resetear_gastos(self):
-        self.gastos = []
-        self.guardar_datos()
