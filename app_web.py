@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 app = DivisorGastos()
 
 st.set_page_config(page_title="Divisor de Gastos", page_icon="💰")
-
 st.title("💰 Divisor de Gastos - Luciano & Mirko")
 
 menu = st.sidebar.selectbox(
@@ -14,6 +13,9 @@ menu = st.sidebar.selectbox(
     ["Agregar gasto", "Ver balance", "Ver gastos", "Eliminar gasto"]
 )
 
+# ---------------------------------------
+# AGREGAR GASTO
+# ---------------------------------------
 if menu == "Agregar gasto":
 
     st.subheader("Agregar nuevo gasto")
@@ -29,12 +31,14 @@ if menu == "Agregar gasto":
         else:
             st.error("Complete todos los campos correctamente")
 
+# ---------------------------------------
+# VER BALANCE
+# ---------------------------------------
 elif menu == "Ver balance":
 
     st.subheader("Balance actual")
 
     balance = app.calcular_balance()
-
     persona1, persona2 = app.personas
     monto1 = balance[persona1]
     monto2 = balance[persona2]
@@ -46,6 +50,9 @@ elif menu == "Ver balance":
     else:
         st.success("Están saldados. No hay deudas.")
 
+# ---------------------------------------
+# VER GASTOS - DASHBOARD PRO
+# ---------------------------------------
 elif menu == "Ver gastos":
 
     st.subheader("📋 Lista de gastos")
@@ -54,16 +61,10 @@ elif menu == "Ver gastos":
         st.warning("No hay gastos registrados.")
     else:
         df = pd.DataFrame(app.gastos)
-
-        if "fecha" not in df.columns:
-            df["fecha"] = None
-
         df["fecha"] = pd.to_datetime(df["fecha"])
         df = df.sort_values("fecha")
 
-        # -----------------------------
-        # FILTRO POR RANGO DE FECHAS
-        # -----------------------------
+        # Filtro fechas
         min_fecha = df["fecha"].min()
         max_fecha = df["fecha"].max()
 
@@ -79,14 +80,18 @@ elif menu == "Ver gastos":
 
         st.dataframe(df_filtrado.sort_values("fecha", ascending=False))
 
-        # -----------------------------
+        st.download_button(
+            label="📥 Descargar Excel",
+            data=df_filtrado.to_csv(index=False),
+            file_name="gastos_filtrados.csv",
+            mime="text/csv"
+        )
+
         # KPIs
-        # -----------------------------
         total_general = df_filtrado["monto"].sum()
         total_por_persona = df_filtrado.groupby("pagador")["monto"].sum()
 
         col1, col2, col3 = st.columns(3)
-
         col1.metric("💰 Total General", f"${total_general:,.0f}")
 
         for i, persona in enumerate(app.personas):
@@ -94,58 +99,42 @@ elif menu == "Ver gastos":
             col = col2 if i == 0 else col3
             col.metric(f"Pagado por {persona}", f"${valor:,.0f}")
 
-        # -----------------------------
-        # GRÁFICO DE BARRAS
-        # -----------------------------
+        # Quién debe a quién
+        balance = app.calcular_balance()
+        persona1, persona2 = app.personas
+        m1 = balance[persona1]
+        m2 = balance[persona2]
+
+        if m1 > 0:
+            st.warning(f"👉 {persona2} le debe ${m1:,.0f} a {persona1}")
+        elif m2 > 0:
+            st.warning(f"👉 {persona1} le debe ${m2:,.0f} a {persona2}")
+        else:
+            st.success("Están saldados ✅")
+
+        # Gráfico barras
         st.subheader("📊 Total pagado por persona")
         st.bar_chart(total_por_persona)
 
-        # -----------------------------
-        # GRÁFICO DE TORTA
-        # -----------------------------
+        # Gráfico torta
         st.subheader("🥧 Distribución porcentual")
-
-        import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.pie(total_por_persona, labels=total_por_persona.index, autopct="%1.1f%%")
         ax.set_title("Gastos por persona")
         st.pyplot(fig)
 
-        # -----------------------------
-        # EVOLUCIÓN TEMPORAL
-        # -----------------------------
-        st.subheader("📈 Evolución de gastos en el tiempo")
+        # Evolución mensual
+        st.subheader("📈 Evolución mensual")
 
-        evolucion = df_filtrado.groupby("fecha")["monto"].sum()
-        st.line_chart(evolucion)
+        df_filtrado["mes"] = df_filtrado["fecha"].dt.to_period("M")
+        mensual = df_filtrado.groupby("mes")["monto"].sum()
+        mensual.index = mensual.index.astype(str)
 
-    st.subheader("Lista de gastos")
+        st.line_chart(mensual)
 
-    if not app.gastos:
-        st.warning("No hay gastos registrados.")
-    else:
-        df = pd.DataFrame(app.gastos)
-
-        if "fecha" not in df.columns:
-            df["fecha"] = None
-
-        df["fecha"] = df["fecha"].fillna("2024-01-01")
-        df["fecha"] = pd.to_datetime(df["fecha"])
-        df = df.sort_values("fecha", ascending=False)
-
-        st.dataframe(df)
-
-        st.subheader("Total pagado por persona")
-        totales = df.groupby("pagador")["monto"].sum()
-        st.bar_chart(totales)
-
-        st.subheader("Distribución porcentual")
-
-        fig, ax = plt.subplots()
-        ax.pie(totales, labels=totales.index, autopct="%1.1f%%")
-        ax.set_title("Gastos por persona")
-        st.pyplot(fig)
-
+# ---------------------------------------
+# ELIMINAR GASTO
+# ---------------------------------------
 elif menu == "Eliminar gasto":
 
     st.subheader("Eliminar gasto")
