@@ -25,14 +25,11 @@ class DivisorGastos:
             json.dump(self.gastos, f, indent=4)
 
     def agregar_gasto(self, descripcion, monto, pagador):
-    gasto = {
-        "descripcion": descripcion,
-        "monto": monto,
-        "pagador": pagador,
-        "fecha": datetime.now().strftime("%Y-%m-%d")
-    }
-    self.gastos.append(gasto)
-    self.guardar_datos()
+        gasto = {
+            "descripcion": descripcion,
+            "monto": monto,
+            "pagador": pagador,
+            "fecha": datetime.now().strftime("%Y-%m-%d")
         }
         self.gastos.append(gasto)
         self.guardar_datos()
