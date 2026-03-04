@@ -1,6 +1,6 @@
 streamlit
+psycopg2-binary
+passlib[bcrypt]
 pandas
 matplotlib
 reportlab
-psycopg2-binary
-passlib[bcrypt]
