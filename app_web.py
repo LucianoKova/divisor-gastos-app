@@ -11,7 +11,11 @@ from reportlab.lib.units import inch
 st.set_page_config(page_title="Divisor de Gastos", page_icon="💰")
 
 app = DivisorGastos()
+
+app = DivisorGastos()
+
 app.crear_usuario("luciano", "1234")
+app.crear_usuario("mirko", "1234")
 
 # -----------------------------
 # LOGIN REAL CON BASE
