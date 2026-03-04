@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 class DivisorGastos:
 
     # 🔐 Configuración de hash segura
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
     def __init__(self):
         self.personas = ["Luciano", "Mirko"]
